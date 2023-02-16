@@ -883,9 +883,6 @@ contains
 #ifdef PRTLPAYLOADS
                                       enroute % payload1, enroute % payload2, enroute % payload3, &
 #endif
-#ifdef DEBUG
-                                      '`copyFromEnroute`', &
-#endif
                                       enroute % ind, enroute % proc, enroute % weight)
   end subroutine copyFromEnroute
 
