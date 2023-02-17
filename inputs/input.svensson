@@ -10,8 +10,8 @@
 
 <node_configuration>
 
-  sizex         = 5              # number of cpus in x direction [*] if 1d+
-  sizey         = 5              # number of cpus in y direction [*] if 2d+
+  sizex         = 2              # number of cpus in x direction [*] if 1d+
+  sizey         = 4              # number of cpus in y direction [*] if 2d+
   sizez         = 1              # number of cpus in z direction [*] if 3d
 
 <time>
@@ -50,26 +50,14 @@
 
   # following two groups are for the `.tot.` main output
   enable        = 1              # enable/disable output [1]
-  flds_enable   = 1              # field output [1]
-  prtl_enable   = 1              # prtl output [1]
+  flds_enable   = 0              # field output [1]
+  prtl_enable   = 0              # prtl output [1]
   spec_enable   = 1              # spectra output [1]
   params_enable = 1              # parameters output [1]
   diag_enable   = 0              # diagnostic output (domain etc) [0]
 
   start         = 0              # first output step [0]
-  interval      = 10             # interval between output steps [10]
-  stride        = 100            # particle stride [10]
-  istep         = 1              # field downsampling [1]
-  smooth_window = 0              # window for gaussian smoothing of the densities [2]
-  flds_at_prtl  = 1              # save fields at particle position [0]
-  write_xdmf    = 1              # enable XDMF file writing (to open hdf5 in VisIt) [1]
-  write_nablas  = 1              # write divE & curlB [0]
-  write_T0i = 1              # write average particle momenta as fields [0]
-	write_npart 	= 1					 		 # write average particle weights per cell [0]
-
-  # history output
-  hst_enable    = 0              # enable/disable history output [0]
-  hst_interval  = 1              # interval between history output steps [1]
+  interval      = 100            # interval between output steps [10]
 
   # spectra output
   # bins are `g - 1` for massive and `e` for massless
@@ -81,10 +69,6 @@
   spec_max      = 1e2            # max energy of spectra [1e2]
   spec_num      = 200            # number of energy bins [100]
   spec_log_bins = 1              # (1 = log | 0 = linear) bins in energy [1]
-
-  spec_nx       = 1              # number of spatial spectra blocks in x [1]
-  spec_ny       = 1              # number of spatial spectra blocks in y [1]
-  spec_nz       = 1              # number of spatial spectra blocks in z [1]
 
 <plasma>
   # these three parameters determine the...
@@ -143,4 +127,6 @@
 
 <problem>
 
-	T_init        = 0.1
+	T_init        = 0.1           # initial temperature or energy (if inj_mono)
+  inj_photons   = 0             # start with the photons
+  inj_mono      = 0             # start with a monoenergetic distribution (as opposed to Maxwellian or Planck)

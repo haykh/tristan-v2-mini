@@ -16,6 +16,9 @@
 !extern/
 !CITATION
 !LICENSE
+!requirements.txt
+!vis
+vis/sol*
 .vscode/*.log
 __pycache__
 

@@ -30,7 +30,8 @@ contains
             fill_ymin, fill_ymax, &
             fill_zmin, fill_zmax
     real :: u_, v_, w_, dx_, dy_, dz_
-    real :: x_, y_, z_, gam_, bet_, TH, ZT, rnd, num_part_r
+    real :: x_, y_, z_, gam_, bet_, TH, ZT, rnd
+    real(kind=8) :: num_part_r
     real :: x_glob, y_glob, z_glob
     logical, optional :: init_2dQ
     logical :: init_2dQ_
@@ -75,37 +76,34 @@ contains
                              fill_xmin, fill_ymin, fill_zmin, adjustQ=.true.)
     call globalToLocalCoords(fill_region % x_max, 0.0, 0.0, &
                              fill_xmax, fill_ymax, fill_zmax, adjustQ=.true.)
-    num_part_r = REAL(ndens_sp) * (fill_xmax - fill_xmin)
+    num_part_r = REAL(ndens_sp, 8) * REAL(fill_xmax - fill_xmin, 8)
 #elif defined(twoD)
     call globalToLocalCoords(fill_region % x_min, fill_region % y_min, 0.0, &
                              fill_xmin, fill_ymin, fill_zmin, adjustQ=.true.)
     call globalToLocalCoords(fill_region % x_max, fill_region % y_max, 0.0, &
                              fill_xmax, fill_ymax, fill_zmax, adjustQ=.true.)
-    num_part_r = REAL(ndens_sp) * (fill_xmax - fill_xmin) &
-                 * (fill_ymax - fill_ymin)
+    num_part_r = REAL(ndens_sp, 8) * REAL(fill_xmax - fill_xmin, 8) &
+                 * REAL(fill_ymax - fill_ymin, 8)
 #elif defined(threeD)
     call globalToLocalCoords(fill_region % x_min, fill_region % y_min, fill_region % z_min, &
                              fill_xmin, fill_ymin, fill_zmin, adjustQ=.true.)
     call globalToLocalCoords(fill_region % x_max, fill_region % y_max, fill_region % z_max, &
                              fill_xmax, fill_ymax, fill_zmax, adjustQ=.true.)
-    num_part_r = REAL(ndens_sp) * (fill_xmax - fill_xmin) &
-                 * (fill_ymax - fill_ymin) &
-                 * (fill_zmax - fill_zmin)
+    num_part_r = REAL(ndens_sp, 8) * REAL(fill_xmax - fill_xmin, 8) &
+                 * REAL(fill_ymax - fill_ymin, 8) &
+                 * REAL(fill_zmax - fill_zmin, 8)
 #endif
 
-    if (num_part_r .lt. 10.0) then
-      if (num_part_r .ne. 0.0) then
-        num_part_r = poisson(num_part_r)
-      else
-        num_part_r = 0.0
-      end if
-    else
-      num_part_r = CEILING(num_part_r)
-    end if
-    num_part = INT(num_part_r)
+    num_part = INT(num_part_r) + 1
 
-    n = 0
-    do while (n .lt. num_part)
+    do n = 1, num_part
+      if (n .eq. num_part) then
+        ! last particle
+        num_part_r = num_part_r - REAL(num_part - 1, 8)
+        if (random(dseed) .gt. num_part_r) then
+          exit
+        end if
+      end if
       ! generate coords for all species
       call generateCoordInRegion(fill_xmin, fill_xmax, fill_ymin, fill_ymax, fill_zmin, fill_zmax, &
                                  x_, y_, z_, xi_, yi_, zi_, dx_, dy_, dz_)
@@ -150,7 +148,6 @@ contains
           call createParticle(spec_, xi_, yi_, zi_, dx_, dy_, dz_, u_, v_, w_, weight=weights_)
         end do
       end if
-      n = n + 1
     end do
   end subroutine fillRegionWithPowerlawPlasma
 end module m_powerlawplasma

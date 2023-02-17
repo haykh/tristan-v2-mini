@@ -17,6 +17,7 @@ module m_userfile
 
   !--- PRIVATE variables -----------------------------------------!
   real, private :: T_init
+  logical, private :: inj_mono, inj_photons
   !...............................................................!
 
   !--- PRIVATE functions -----------------------------------------!
@@ -27,6 +28,8 @@ contains
   subroutine userReadInput()
     implicit none
     call getInput('problem', 'T_init', T_init)
+    call getInput('problem', 'inj_mono', inj_mono)
+    call getInput('problem', 'inj_photons', inj_photons)
   end subroutine userReadInput
 
   function userSpatialDistribution(x_glob, y_glob, z_glob, &
@@ -48,16 +51,98 @@ contains
     return
   end function
 
+  real function planckSample()
+    implicit none
+    real :: prob, n
+    real :: rnd
+    rnd = random(dseed)
+    n = 0.0
+    prob = 0.0
+    do while ((prob .lt. rnd) .and. (n .lt. 40.0))
+      n = n + 1.0
+      prob = prob + 1.0 / (1.20206 * n**3)
+    end do
+    planckSample = -log(random(dseed) * random(dseed) * random(dseed) + 1e-16) / n
+    return
+  end function planckSample
+
+  subroutine generateRandomDirection(kx, ky, kz)
+    implicit none
+    real, intent(out) :: kx, ky, kz
+    real :: rand_costh, rand_phi
+    rand_costh = 2.0 * random(dseed) - 1.0
+    rand_phi = 2.0 * M_PI * random(dseed)
+    kx = sqrt(1.0 - rand_costh**2) * cos(rand_phi)
+    ky = sqrt(1.0 - rand_costh**2) * sin(rand_phi)
+    kz = rand_costh
+  end subroutine generateRandomDirection
+
+  subroutine injectPhoton(step)
+    implicit none
+    integer, optional, intent(in) :: step
+    real :: xg, yg, zg, kx, ky, kz, energy
+    real :: ph_temperature
+    ph_temperature = T_init
+
+    xg = random(dseed) * REAL(global_mesh % sx)
+    yg = random(dseed) * REAL(global_mesh % sy)
+    zg = 0.5
+
+    if (inj_mono) then
+      energy = ph_temperature
+    else
+      energy = ph_temperature * planckSample()
+    end if
+
+    call generateRandomDirection(kx, ky, kz)
+    call injectParticleGlobally(3, xg, yg, zg, energy * kx, energy * ky, energy * kz, 1.0)
+  end subroutine injectPhoton
+
   subroutine userInitParticles()
     implicit none
     type(region) :: back_region
+    integer :: s, ti, tj, tk, p
+    real :: vel
+    integer :: ncells, nphotons, n
     procedure(spatialDistribution), pointer :: spat_distr_ptr => null()
     spat_distr_ptr => userSpatialDistribution
-    back_region % x_min = 0.0
-    back_region % x_max = global_mesh % sx
-    back_region % y_min = 0.0
-    back_region % y_max = global_mesh % sy
-    call fillRegionWithThermalPlasma(back_region, (/1, 2/), 2, ppc0, T_init)
+
+    if (inj_photons) then
+      ! injecting photons
+      ncells = global_mesh % sx * global_mesh % sy * global_mesh % sz
+      nphotons = INT(REAL(ppc0, 8) * REAL(ncells, 8))
+      do n = 1, nphotons
+        call injectPhoton(0)
+      end do
+    else
+      ! injecting pairs
+      back_region % x_min = 0.0
+      back_region % x_max = global_mesh % sx
+      back_region % y_min = 0.0
+      back_region % y_max = global_mesh % sy
+      call fillRegionWithThermalPlasma(back_region, (/1, 2/), 2, ppc0, T_init)
+      
+      if (inj_mono) then
+        ! reset pair energies
+        do s = 1, 2
+          do ti = 1, species(s) % tile_nx
+            do tj = 1, species(s) % tile_ny
+              do tk = 1, species(s) % tile_nz
+                do p = 1, species(s) % prtl_tile(ti, tj, tk) % npart_sp
+                  vel = sqrt(species(s) % prtl_tile(ti, tj, tk) % u(p)**2 + &
+                            species(s) % prtl_tile(ti, tj, tk) % v(p)**2 + &
+                            species(s) % prtl_tile(ti, tj, tk) % w(p)**2)
+                  species(s) % prtl_tile(ti, tj, tk)%u(p) = T_init * species(s) % prtl_tile(ti, tj, tk)%u(p) / vel
+                  species(s) % prtl_tile(ti, tj, tk)%v(p) = T_init * species(s) % prtl_tile(ti, tj, tk)%v(p) / vel
+                  species(s) % prtl_tile(ti, tj, tk)%w(p) = T_init * species(s) % prtl_tile(ti, tj, tk)%w(p) / vel
+                end do
+              end do
+            end do
+          end do
+        end do
+      end if
+    end if
+
   end subroutine userInitParticles
 
   subroutine userInitFields()
@@ -67,17 +152,6 @@ contains
     ex(:, :, :) = 0; ey(:, :, :) = 0; ez(:, :, :) = 0
     bx(:, :, :) = 0; by(:, :, :) = 0; bz(:, :, :) = 0
     jx(:, :, :) = 0; jy(:, :, :) = 0; jz(:, :, :) = 0
-    ! ... dummy loop ...
-    ! do i = 0, this_meshblock%ptr%sx - 1
-    !   i_glob = i + this_meshblock%ptr%x0
-    !   do j = 0, this_meshblock%ptr%sy - 1
-    !     j_glob = j + this_meshblock%ptr%y0
-    !     do k = 0, this_meshblock%ptr%sz - 1
-    !       k_glob = k + this_meshblock%ptr%z0
-    !       ...
-    !     end do
-    !   end do
-    ! end do
   end subroutine userInitFields
   !............................................................!
 
@@ -85,26 +159,11 @@ contains
   subroutine userCurrentDeposit(step)
     implicit none
     integer, optional, intent(in) :: step
-    ! called after particles move and deposit ...
-    ! ... and before the currents are added to the electric field
   end subroutine userCurrentDeposit
 
   subroutine userDriveParticles(step)
     implicit none
     integer, optional, intent(in) :: step
-    ! ... dummy loop ...
-    ! integer :: s, ti, tj, tk, p
-    ! do s = 1, nspec
-    !   do ti = 1, species(s)%tile_nx
-    !     do tj = 1, species(s)%tile_ny
-    !       do tk = 1, species(s)%tile_nz
-    !         do p = 1, species(s)%prtl_tile(ti, tj, tk)%npart_sp
-    !           ...
-    !         end do
-    !       end do
-    !     end do
-    !   end do
-    ! end do
   end subroutine userDriveParticles
 
   subroutine userExternalFields(xp, yp, zp, &
@@ -124,32 +183,12 @@ contains
   subroutine userParticleBoundaryConditions(step)
     implicit none
     integer, optional, intent(in) :: step
-    integer :: i
-    real :: thet, rnd, u_, v_, w_
-    real :: x1_g, y1_g, x2_g, y2_g
-    real :: x1_l, y1_l, x2_l, y2_l
-    real :: dx_, dy_, dz_, x_, y_
-    integer(kind=2) :: xi_, yi_, zi_
-
   end subroutine userParticleBoundaryConditions
 
   subroutine userFieldBoundaryConditions(step, updateE, updateB)
     implicit none
     integer, optional, intent(in) :: step
     logical, optional, intent(in) :: updateE, updateB
-    logical :: updateE_, updateB_
-
-    if (present(updateE)) then
-      updateE_ = updateE
-    else
-      updateE_ = .true.
-    end if
-
-    if (present(updateB)) then
-      updateB_ = updateB
-    else
-      updateB_ = .true.
-    end if
   end subroutine userFieldBoundaryConditions
   !............................................................!
 
