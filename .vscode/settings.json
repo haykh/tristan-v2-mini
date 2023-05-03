@@ -1,0 +1,7 @@
+{
+  "fortran.formatting.formatter": "Disabled",
+  "modernFortranFormatter.fprettifyPath": "/home/hayk/.local/bin/fprettify",
+  "modernFortranFormatter.fprettifyArgs": "-i 2 -w 4 --whitespace-assignment true --enable-decl --whitespace-decl true --whitespace-relational true --whitespace-logical true --whitespace-plusminus true --whitespace-multdiv true --whitespace-print true --whitespace-type true --whitespace-intrinsics true --enable-replacements -l 1000",
+  "fortran.fortls.disabled": true,
+  "fortran.fortls.path": "",
+}

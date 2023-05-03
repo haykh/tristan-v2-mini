@@ -10,49 +10,80 @@ module m_userfile
   implicit none
 
   !--- PRIVATE variables -----------------------------------------!
-  real :: Te, eph0, delta_eph0
-  private :: Te, eph0, delta_eph0
+  real, private :: Te, Tph0, ph_fraction, t_inject, t_escape
   !...............................................................!
 
-  !--- PRIVATE functions -----------------------------------------!
-  private :: userSpatialDistribution
-  !...............................................................!
 contains
   !--- initialization -----------------------------------------!
   subroutine userReadInput()
     implicit none
     call getInput('problem', 'Te', Te)
-    call getInput('problem', 'eph0', eph0)
-    call getInput('problem', 'delta_eph0', delta_eph0)
+    call getInput('problem', 'Tph0', Tph0)
+    call getInput('problem', 'ph_fraction', ph_fraction, 1.0)
+    call getInput('problem', 't_inject', t_inject, 0.0)
+    call getInput('problem', 't_escape', t_escape, 0.0)
   end subroutine userReadInput
 
-  function userSpatialDistribution(x_glob, y_glob, z_glob, &
-                                   dummy1, dummy2, dummy3)
-    real :: userSpatialDistribution
-    real, intent(in), optional :: x_glob, y_glob, z_glob
-    real, intent(in), optional :: dummy1, dummy2, dummy3
-
+  real function planckSample()
+    implicit none
+    real :: prob, n
+    real :: rnd
+    rnd = random(dseed)
+    n = 0.0
+    prob = 0.0
+    do while ((prob .lt. rnd) .and. (n .lt. 40.0))
+      n = n + 1.0
+      prob = prob + 1.0 / (1.20206 * n**3)
+    end do
+    planckSample = -log(random(dseed) * random(dseed) * random(dseed) + 1e-16) / n
     return
-  end function
+  end function planckSample
 
-  function userSLBload(x_glob, y_glob, z_glob, &
-                       dummy1, dummy2, dummy3)
-    real :: userSLBload
-    ! global coordinates
-    real, intent(in), optional :: x_glob, y_glob, z_glob
-    ! global box dimensions
-    real, intent(in), optional :: dummy1, dummy2, dummy3
-    return
-  end function
+  subroutine injectPhotons(nphotons)
+    implicit none
+    integer, intent(in) :: nphotons
+    integer :: n
+    real :: xg, yg, zg, eph, kx, ky, kz
+    real :: U_, TH_
+    do n = 1, INT(REAL(nphotons) * ph_fraction)
+      xg = random(dseed) * (global_mesh % sx)
+      yg = random(dseed) * (global_mesh % sy)
+      ! zg = random(dseed) * (global_mesh%sz)
+      zg = 0.5
+      U_ = 2 * (random(dseed) - 0.5)
+      TH_ = 2 * M_PI * random(dseed)
+      eph = planckSample() * Tph0
+      kx = eph * sqrt(1 - U_**2) * cos(TH_)
+      ky = eph * sqrt(1 - U_**2) * sin(TH_)
+      kz = eph * U_
+      call injectParticleGlobally(3, xg, yg, zg, kx, ky, kz, weight=1.0, payload1=0.0)
+    end do
+  end subroutine injectPhotons
+
+  subroutine removePhotons(tmax)
+    implicit none
+    real, intent(in) :: tmax
+    integer :: s, ti, tj, tk, p
+    s = 3
+
+    do ti = 1, species(s) % tile_nx
+      do tj = 1, species(s) % tile_ny
+        do tk = 1, species(s) % tile_nz
+          do p = 1, species(s) % prtl_tile(ti, tj, tk) % npart_sp
+            if (species(s) % prtl_tile(ti, tj, tk) % payload1(p) .ge. tmax) then
+              species(s) % prtl_tile(ti, tj, tk) % proc(p) = -1
+            end if
+          end do
+        end do
+      end do
+    end do
+  end subroutine removePhotons
 
   subroutine userInitParticles()
     implicit none
     real :: dens
+    integer :: ntot
     type(region) :: back_region
-    real :: eph, xg, yg, zg, kx, ky, kz, U_, TH_
-    integer :: ntot, n
-    procedure(spatialDistribution), pointer :: spat_distr_ptr => null()
-    spat_distr_ptr => userSpatialDistribution
 
     ! the electron and positron thermal background:
     dens = 0.5 * ppc0
@@ -68,21 +99,11 @@ contains
 #endif
     call fillRegionWithThermalPlasma(back_region, (/1, 2/), 2, dens, Te)
 
-    ! the isotropic photon field:
-    ntot = global_mesh % sx * global_mesh % sy * global_mesh % sz * ppc0
-    do n = 1, ntot
-      xg = random(dseed) * (global_mesh % sx)
-      yg = random(dseed) * (global_mesh % sy)
-      ! zg = random(dseed) * (global_mesh%sz)
-      zg = 0.5
-      U_ = 2 * (random(dseed) - 0.5)
-      TH_ = 2 * M_PI * random(dseed)
-      eph = eph0 + delta_eph0 * 2 * (random(dseed) - 0.5)
-      kx = eph * sqrt(1 - U_**2) * cos(TH_)
-      ky = eph * sqrt(1 - U_**2) * sin(TH_)
-      kz = eph * U_
-      call injectParticleGlobally(3, xg, yg, zg, kx, ky, kz)
-    end do
+    ! init the isotropic photon field:
+    if (t_inject .eq. 0.0) then
+      ntot = global_mesh % sx * global_mesh % sy * global_mesh % sz * ppc0
+      call injectPhotons(ntot)
+    end if
   end subroutine userInitParticles
 
   subroutine userInitFields()
@@ -99,26 +120,11 @@ contains
   subroutine userCurrentDeposit(step)
     implicit none
     integer, optional, intent(in) :: step
-    ! called after particles move and deposit ...
-    ! ... and before the currents are added to the electric field
   end subroutine userCurrentDeposit
 
   subroutine userDriveParticles(step)
     implicit none
     integer, optional, intent(in) :: step
-    ! ... dummy loop ...
-    ! integer :: s, ti, tj, tk, p
-    ! do s = 1, nspec
-    !   do ti = 1, species(s)%tile_nx
-    !     do tj = 1, species(s)%tile_ny
-    !       do tk = 1, species(s)%tile_nz
-    !         do p = 1, species(s)%prtl_tile(ti, tj, tk)%npart_sp
-    !           ...
-    !         end do
-    !       end do
-    !     end do
-    !   end do
-    ! end do
   end subroutine userDriveParticles
 
   subroutine userExternalFields(xp, yp, zp, &
@@ -138,6 +144,17 @@ contains
   subroutine userParticleBoundaryConditions(step)
     implicit none
     integer, optional, intent(in) :: step
+    integer :: ntot
+
+    ! init the isotropic photon field
+    if (t_inject .gt. 0.0) then
+      ntot = global_mesh % sx * global_mesh % sy * global_mesh % sz * ppc0 / t_inject
+      call injectPhotons(ntot)
+    end if
+
+    if (t_escape .gt. 0.0) then
+      call removePhotons(t_escape)
+    end if
   end subroutine userParticleBoundaryConditions
 
   subroutine userFieldBoundaryConditions(step, updateE, updateB)
@@ -160,5 +177,37 @@ contains
   end subroutine userFieldBoundaryConditions
   !............................................................!
 
-#include "optional.F"
+  elemental subroutine usrSetPhPld(u0, v0, w0, over_e_temp, &
+                                   incr_pld1, incr_pld2, incr_pld3)
+    !$omp declare simd(usrSetPhPld)
+    real, intent(in) :: u0, v0, w0, over_e_temp
+    real, intent(out) :: incr_pld1, incr_pld2, incr_pld3
+    incr_pld1 = 1.0; incr_pld2 = 0.0; incr_pld3 = 0.0
+  end subroutine
+
+  ! DUMMY
+  subroutine writeUsrRestart(rst_file)
+    implicit none
+    integer, intent(in) :: rst_file
+  end subroutine writeUsrRestart
+
+  subroutine readUsrRestart(rst_file)
+    implicit none
+    integer, intent(in) :: rst_file
+  end subroutine readUsrRestart
+
+  subroutine userDeallocate()
+    implicit none
+  end subroutine userDeallocate
+
+  elemental subroutine usrSetElPld(q_over_m, u0, v0, w0, over_e_temp, &
+                                   ex0, ey0, ez0, bx0, by0, bz0, &
+                                   incr_pld1, incr_pld2, incr_pld3)
+    !$omp declare simd(usrSetElPld)
+    real, intent(in) :: q_over_m, u0, v0, w0, over_e_temp, &
+                        ex0, ey0, ez0, &
+                        bx0, by0, bz0
+    real, intent(out) :: incr_pld1, incr_pld2, incr_pld3
+    incr_pld1 = 0.0; incr_pld2 = 0.0; incr_pld3 = 0.0
+  end subroutine
 end module m_userfile
