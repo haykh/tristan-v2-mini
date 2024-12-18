@@ -18,6 +18,7 @@
 !LICENSE
 !requirements.txt
 !vis
+!CMakeLists.txt
 vis/sol*
 .vscode/*.log
 __pycache__
