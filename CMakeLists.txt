@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 
-if (DEFINED ENV{HDF5_ROOT})
+if(DEFINED ENV{HDF5_ROOT})
   message(NOTICE "HDF5 found")
   set(HDF5_ROOT $ENV{HDF5_ROOT})
 endif()
-if (DEFINED ENV{I_MPI_ROOT})
+if(DEFINED ENV{I_MPI_ROOT})
   message(NOTICE "Intel MPI found")
   set(I_MPI_ROOT $ENV{I_MPI_ROOT})
 endif()
@@ -12,27 +12,31 @@ endif()
 option(hdf5 "Use HDF5" ON)
 option(intel "Use Intel compiler" ON)
 
-# if (${hdf5} STREQUAL "ON")
-#   set(CMAKE_Fortran_COMPILER "${HDF5_ROOT}/bin/h5pfc")
-# else()
-#   if (${intel} STREQUAL "ON")
-#     set(CMAKE_Fortran_COMPILER "${I_MPI_ROOT}/bin/mpif90")
-#   endif()
-# endif()
+if(${hdf5} STREQUAL "ON")
+  set(CMAKE_Fortran_COMPILER "${HDF5_ROOT}/bin/h5pfc")
+else()
+  if(${intel} STREQUAL "ON")
+    set(CMAKE_Fortran_COMPILER "${I_MPI_ROOT}/bin/mpif90")
+  endif()
+endif()
 
-# message(NOTICE "Compiler: ${CMAKE_Fortran_COMPILER}")
+message(NOTICE "Compiler: ${CMAKE_Fortran_COMPILER}")
 
-project(tristan-v2-mini VERSION 2.8
-	DESCRIPTION "Relativistic cartesian particle-in-cell code (MINI)"
-        LANGUAGES Fortran)
+project(
+  tristan-v2-mini
+  VERSION 2.8
+  DESCRIPTION "Relativistic cartesian particle-in-cell code (MINI)"
+  LANGUAGES Fortran)
 
 find_package(MPI REQUIRED COMPONENTS Fortran)
 
-if (${hdf5} STREQUAL "ON")
+if(${hdf5} STREQUAL "ON")
   find_package(HDF5 REQUIRED COMPONENTS Fortran)
 endif()
 
-set(DEBUG "OFF" CACHE BOOL "Debug mode")
+set(DEBUG
+    "OFF"
+    CACHE BOOL "Debug mode")
 
 add_compile_definitions(STR_MAX=280)
 add_compile_definitions(TINYXYZ=1e-6)
@@ -43,17 +47,25 @@ add_compile_definitions(M_PI=3.141592653589793)
 add_compile_definitions(VEC_LEN=16)
 
 # -- optimizations --
-set(vectorization "None" CACHE STRING "Vectorization level (None, avx2, avx512)")
+set(vectorization
+    "None"
+    CACHE STRING "Vectorization level (None, avx2, avx512)")
 
-if (${DEBUG} STREQUAL "ON") # debug
+if(${DEBUG} STREQUAL "ON") # debug
   set(CMAKE_BUILD_TYPE CACHE STRING "Debug")
   add_compile_definitions(DEBUG)
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -O0")
-  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wall -Wextra -Wconversion -pedantic -Wno-compare-reals -Wno-unused-dummy-argument")
-  if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU") # gnu
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fcheck=all -fimplicit-none -fbacktrace -ffpe-trap=invalid,zero,overflow,underflow,denormal")
-  elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -traceback -fpe0 -check all -check noarg_temp_created")
+  set(CMAKE_Fortran_FLAGS
+      "${CMAKE_Fortran_FLAGS} -Wall -Wextra -Wconversion -pedantic -Wno-compare-reals -Wno-unused-dummy-argument"
+  )
+  if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU") # gnu
+    set(CMAKE_Fortran_FLAGS
+        "${CMAKE_Fortran_FLAGS} -fcheck=all -fimplicit-none -fbacktrace -ffpe-trap=invalid,zero,overflow,underflow,denormal"
+    )
+  elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+    set(CMAKE_Fortran_FLAGS
+        "${CMAKE_Fortran_FLAGS} -traceback -fpe0 -check all -check noarg_temp_created"
+    )
   else()
     message(FATAL_ERROR "Compiler not supported")
   endif()
@@ -61,37 +73,43 @@ else() # nodebug
   set(CMAKE_BUILD_TYPE CACHE STRING "Release")
   add_compile_definitions(NDEBUG)
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Ofast -O3 -DSoA")
-  if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fwhole-program -mavx2 -fopt-info-vec -fopt-info-vec-missed -ftree-vectorizer-verbose=5 -ffree-line-length-512")
-  elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ipo -qopenmp-simd -qopt-report=3 -qopt-streaming-stores auto")
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -diag-disable 10397 -diag-disable 10346 -diag-disable 8100 -diag-disable 6178")
+  if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+    set(CMAKE_Fortran_FLAGS
+        "${CMAKE_Fortran_FLAGS} -fwhole-program -mavx2 -fopt-info-vec -fopt-info-vec-missed -ftree-vectorizer-verbose=5 -ffree-line-length-512"
+    )
+  elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+    set(CMAKE_Fortran_FLAGS
+        "${CMAKE_Fortran_FLAGS} -ipo -qopenmp-simd -qopt-report=3 -qopt-streaming-stores auto"
+    )
+    set(CMAKE_Fortran_FLAGS
+        "${CMAKE_Fortran_FLAGS} -diag-disable 10397 -diag-disable 10346 -diag-disable 8100 -diag-disable 6178"
+    )
   else()
     message(FATAL_ERROR "Compiler not supported")
   endif()
 
   # vectorization
-  if (${vectorization} STREQUAL "avx2")
-    if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+  if(${vectorization} STREQUAL "avx2")
+    if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
       set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -mavx2")
-    elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+    elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
       set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -xCORE-AVX2")
     endif()
-  elseif (${vectorization} STREQUAL "avx512")
-    if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+  elseif(${vectorization} STREQUAL "avx512")
+    if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
       set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -mavx512f")
-    elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-      set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -xCORE-AVX512 -qopt-zmm-usage:high")
+    elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+      set(CMAKE_Fortran_FLAGS
+          "${CMAKE_Fortran_FLAGS} -xCORE-AVX512 -qopt-zmm-usage:high")
     endif()
-  elseif (${vectorization} STREQUAL "None")
+  elseif(${vectorization} STREQUAL "None")
     # do nothing
   else()
     message(FATAL_ERROR "Vectorization level not supported")
   endif()
 endif()
 
-# -- options --
-# architecture
+# -- options -- architecture
 option(mpi08 "Use MPI08" ON)
 option(mpinonblock "Use non-blocking MPI" OFF)
 option(lowmem "Use low memory mode" OFF)
@@ -108,107 +126,119 @@ option(compton "Enable Compton scattering" OFF)
 option(bwpp "Enable Breit-Wheeler pair production" OFF)
 option(annihilation "Enable pair annihilation" OFF)
 
-set(precision "single" CACHE STRING "Precision of the code (single or double)")
-set(nghosts "2" CACHE STRING "Number of ghost cells (default 2)")
-set(radiation "OFF" CACHE STRING "Radiation drag (or OFF)")
+set(precision
+    "single"
+    CACHE STRING "Precision of the code (single or double)")
+set(nghosts
+    "2"
+    CACHE STRING "Number of ghost cells (default 2)")
+set(radiation
+    "OFF"
+    CACHE STRING "Radiation drag (or OFF)")
 
 # -- additional configs for each option --
-if (${mpi08} STREQUAL "ON")
+if(${mpi08} STREQUAL "ON")
   add_compile_definitions(MPI08)
 endif()
-if (${mpinonblock} STREQUAL "ON")
+if(${mpinonblock} STREQUAL "ON")
   add_compile_definitions(MPINONBLOCK)
 endif()
-if (${lowmem} STREQUAL "ON")
+if(${lowmem} STREQUAL "ON")
   add_compile_definitions(LOWMEM)
 endif()
-if (${ifport} STREQUAL "ON")
+if(${ifport} STREQUAL "ON")
   add_compile_definitions(IFPORT)
 endif()
-if (${payload} STREQUAL "ON")
+if(${payload} STREQUAL "ON")
   add_compile_definitions(PRTLPAYLOADS)
 endif()
-if (${serialoutput} STREQUAL "ON")
+if(${serialoutput} STREQUAL "ON")
   add_compile_definitions(SERIALOUTPUT)
 endif()
-if (${usroutput} STREQUAL "ON")
+if(${usroutput} STREQUAL "ON")
   add_compile_definitions(USROUTPUT)
 endif()
-if (${vay} STREQUAL "ON")
-  add_compile_definitions(VAY)
-endif()
-if (${emit} STREQUAL "ON")
+if(${emit} STREQUAL "ON")
   add_compile_definitions(EMIT)
 endif()
-if (${qed} STREQUAL "ON")
+if(${qed} STREQUAL "ON")
   add_compile_definitions(QED)
 endif()
-if (${compton} STREQUAL "ON")
-  if (${qed} STREQUAL "OFF")
+if(${compton} STREQUAL "ON")
+  if(${qed} STREQUAL "OFF")
     message(FATAL_ERROR "Compton scattering requires QED to be enabled")
   endif()
   add_compile_definitions(COMPTONSCATTERING)
 endif()
-if (${bwpp} STREQUAL "ON")
-  if (${qed} STREQUAL "OFF")
-    message(FATAL_ERROR "Breit-Wheeler pair production requires QED to be enabled")
+if(${bwpp} STREQUAL "ON")
+  if(${qed} STREQUAL "OFF")
+    message(
+      FATAL_ERROR "Breit-Wheeler pair production requires QED to be enabled")
   endif()
   add_compile_definitions(BWPAIRPRODUCTION)
 endif()
-if (${annihilation} STREQUAL "ON")
-  if (${qed} STREQUAL "OFF")
+if(${annihilation} STREQUAL "ON")
+  if(${qed} STREQUAL "OFF")
     message(FATAL_ERROR "Pair annihilation requires QED to be enabled")
   endif()
   add_compile_definitions(PAIRANNIHILATION)
 endif()
-if (NOT ${gca} STREQUAL "OFF")
+if(NOT ${gca} STREQUAL "OFF")
   add_compile_definitions(GCA)
   add_compile_definitions(GCAITER=${gca})
 endif()
 
-if (${precision} STREQUAL "single")
+if(${precision} STREQUAL "single")
   add_compile_definitions(default_h5_real=H5T_NATIVE_REAL)
 else()
   add_compile_definitions(DPREC)
   add_compile_definitions(default_h5_real=H5T_NATIVE_DOUBLE)
-  if (${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
+  if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fdefault-real-8")
-  elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
+  elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -r8")
   endif()
 endif()
 
 add_compile_definitions(NGHOST=${nghosts})
 
-if (${radiation} MATCHES "sync")
+if(${radiation} MATCHES "sync")
   add_compile_definitions(SYNCHROTRON)
   add_compile_definitions(RADIATION)
 endif()
-if (${radiation} MATCHES "ic")
+if(${radiation} MATCHES "ic")
   add_compile_definitions(INVERSECOMPTON)
   add_compile_definitions(RADIATION)
 endif()
 
 # select the dimension
-set (dim "None" CACHE STRING "dimension")
-if (dim STREQUAL "1")
+set(dim
+    "None"
+    CACHE STRING "dimension")
+if(dim STREQUAL "1")
   add_compile_definitions(oneD)
-elseif (dim STREQUAL "2")
+elseif(dim STREQUAL "2")
   add_compile_definitions(twoD)
-elseif (dim STREQUAL "3")
+elseif(dim STREQUAL "3")
   add_compile_definitions(threeD)
 else()
   message(FATAL_ERROR "Please specify dimension (1,2,3) with `-D dim=<DIM>`")
 endif()
 
-# if userfile not defined
-# list all files in user directory
-set(user "" CACHE STRING "userfile")
-set(unit "" CACHE STRING "unitfile")
+# if userfile not defined list all files in user directory
+set(user
+    ""
+    CACHE STRING "userfile")
+set(unit
+    ""
+    CACHE STRING "unitfile")
 if(user STREQUAL "" AND unit STREQUAL "")
   file(GLOB userfiles ${CMAKE_CURRENT_SOURCE_DIR}/../user/*.F90)
   file(GLOB unitfiles ${CMAKE_CURRENT_SOURCE_DIR}/../unit/*.F90)
-  message(STATUS "Please specify userfile or unitfile with `-D user=<USERFILE>` or `-D unit=<UNITFILE>`:")
+  message(
+    STATUS
+      "Please specify userfile or unitfile with `-D user=<USERFILE>` or `-D unit=<UNITFILE>`:"
+  )
   message(STATUS "userfiles:")
   foreach(userfile ${userfiles})
     get_filename_component(userfile ${userfile} NAME)
@@ -223,7 +253,7 @@ if(user STREQUAL "" AND unit STREQUAL "")
   endforeach()
   message(FATAL_ERROR "userfile or unitfile not defined")
 endif()
-if (NOT user STREQUAL "")
+if(NOT user STREQUAL "")
   set(userfile "${CMAKE_CURRENT_SOURCE_DIR}/user/${user}.F90")
 else()
   set(userfile "${CMAKE_CURRENT_SOURCE_DIR}/unit/${unit}.F90")
@@ -236,7 +266,8 @@ get_directory_property(Defs COMPILE_DEFINITIONS)
 string(REPLACE ";" " " Defs "${Defs}")
 
 message(NOTICE "==========================================================")
-message(NOTICE "Tristan v2 Mini has been configured with the following options:")
+message(NOTICE
+        "Tristan v2 Mini has been configured with the following options:")
 message(NOTICE "")
 message(NOTICE "SETUP:")
 message(NOTICE "  Userfile: ${userfile}")
@@ -261,6 +292,7 @@ message(NOTICE "  User output: ${usroutput}")
 message(NOTICE "  MPI version: MPI08=${mpi08}")
 message(NOTICE "  IFPORT mkdir: ${ifport}")
 message(NOTICE "..........................................................")
-message(NOTICE "Compilation command: ${CMAKE_Fortran_COMPILER} ${CMAKE_Fortran_FLAGS}")
+message(NOTICE
+        "Compilation command: ${CMAKE_Fortran_COMPILER} ${CMAKE_Fortran_FLAGS}")
 message(NOTICE "Definitions: ${Defs}")
 message(NOTICE "==========================================================")
