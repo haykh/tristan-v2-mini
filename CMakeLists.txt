@@ -1,24 +1,24 @@
 cmake_minimum_required(VERSION 3.16)
 
-if(DEFINED ENV{HDF5_ROOT})
-  message(NOTICE "HDF5 found")
-  set(HDF5_ROOT $ENV{HDF5_ROOT})
-endif()
-if(DEFINED ENV{I_MPI_ROOT})
-  message(NOTICE "Intel MPI found")
-  set(I_MPI_ROOT $ENV{I_MPI_ROOT})
-endif()
+# if(DEFINED ENV{HDF5_ROOT})
+#   message(NOTICE "HDF5 found")
+#   set(HDF5_ROOT $ENV{HDF5_ROOT})
+# endif()
+# if(DEFINED ENV{I_MPI_ROOT})
+#   message(NOTICE "Intel MPI found")
+#   set(I_MPI_ROOT $ENV{I_MPI_ROOT})
+# endif()
 
 option(hdf5 "Use HDF5" ON)
-option(intel "Use Intel compiler" ON)
+# option(intel "Use Intel compiler" ON)
 
-if(${hdf5} STREQUAL "ON")
-  set(CMAKE_Fortran_COMPILER "${HDF5_ROOT}/bin/h5pfc")
-else()
-  if(${intel} STREQUAL "ON")
-    set(CMAKE_Fortran_COMPILER "${I_MPI_ROOT}/bin/mpif90")
-  endif()
-endif()
+# if(${hdf5} STREQUAL "ON")
+#   set(CMAKE_Fortran_COMPILER "${HDF5_ROOT}/bin/h5pfc")
+# else()
+#   if(${intel} STREQUAL "ON")
+#     set(CMAKE_Fortran_COMPILER "${I_MPI_ROOT}/bin/mpif90")
+#   endif()
+# endif()
 
 message(NOTICE "Compiler: ${CMAKE_Fortran_COMPILER}")
 
@@ -29,10 +29,7 @@ project(
   LANGUAGES Fortran)
 
 find_package(MPI REQUIRED COMPONENTS Fortran)
-
-if(${hdf5} STREQUAL "ON")
-  find_package(HDF5 REQUIRED COMPONENTS Fortran)
-endif()
+find_package(HDF5 REQUIRED COMPONENTS Fortran)
 
 set(DEBUG
     "OFF"

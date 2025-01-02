@@ -9,6 +9,7 @@
 !configure.py
 !fulltest.py
 !Makefile.in
+!Makefile.depend
 !README.md
 !dev-requirements.txt
 !.vscode

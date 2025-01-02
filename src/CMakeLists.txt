@@ -9,5 +9,5 @@ target_include_directories(${executable} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/alg
 target_include_directories(${executable} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools)
 
 if (${hdf5} STREQUAL "ON")
-  target_link_libraries(${executable} HDF5::HDF5)
+	target_link_libraries(${executable} HDF5::HDF5)
 endif()

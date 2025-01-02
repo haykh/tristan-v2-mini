@@ -34,11 +34,11 @@ endif
 
 .PHONY: all depend clean
 
-all : depend $(EXECUTABLE)
+all : $(EXECUTABLE)
 
 -include Makefile.depend
 
-MAKEDEPF90 := makedepf90
+MAKEDEPF90 := ./extern/makedepf90
 ifeq (, $(shell which ${MAKEDEPF90}))
 	OS := $(shell uname)
 	ifeq ($(OS), Darwin)
@@ -67,5 +67,4 @@ clean :
 	${HIDE}echo "Cleaning ..."
 	${HIDE}rm -f $(EXECUTABLE) $(OBJ_FILES)
 	${HIDE}rm -rf $(BIN_DIR) $(BUILD_DIR)
-	${HIDE}rm -f Makefile.depend
 
