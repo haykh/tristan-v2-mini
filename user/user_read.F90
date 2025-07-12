@@ -18,7 +18,7 @@ module m_userfile
   !...............................................................!
 
   !--- PRIVATE functions -----------------------------------------!
-  private :: userSpatialDistribution
+  private :: ReadRealScalar, userSpatialDistribution
   !...............................................................!
 contains
   !--- initialization -----------------------------------------!
@@ -51,102 +51,148 @@ contains
     spat_distr_ptr => userSpatialDistribution
   end subroutine userInitParticles
 
+  subroutine ReadRealScalar(filename, datasetname, buffer)
+    character(len=*), intent(in) :: filename 
+    character(len=*), intent(in) :: datasetname
+    real, intent(out) :: buffer
+    character(len=1), parameter :: groupname = "/"
+    integer(HSIZE_T), allocatable, dimension(:) :: dims
+    integer(HID_T) :: file_id, group_id, dset_id, dspace_id
+    integer :: error, status
+    integer :: h5_error_id
+
+    h5_error_id = -1
+
+    call h5open_f(error)
+    if (error .ne. h5_error_id) then
+      call h5fopen_f(trim(filename), H5F_ACC_RDONLY_F, file_id, error)
+      if (error .ne. h5_error_id) then
+        call h5gopen_f(file_id, groupname, group_id, error)
+        if (error .ne. h5_error_id) then
+          call h5dopen_f(group_id, trim(datasetname), dset_id, error)
+          if (error .ne. h5_error_id) then
+            call h5dget_space_f(dset_id, dspace_id, error)
+            if (error .ne. h5_error_id) then
+              call h5dread_f(dset_id, H5T_NATIVE_REAL, buffer, dims, error)
+              if (error .ne. h5_error_id) then
+                print *, 'successfully read dataset value: ', buffer
+              else
+                print *, 'error: failed to read dataset value.'
+              end if
+              call h5sclose_f(dspace_id, error)
+            else
+              print *, 'error: could not get dataspace.'
+            end if
+            call h5dclose_f(dset_id, error)
+          else
+            print *, 'error: could not open dataset ', trim(datasetname)
+          end if
+          call h5gclose_f(group_id, error)
+        else
+          print *, 'error: could not open group ', trim(groupname)
+        end if
+        call h5fclose_f(file_id, error)
+      else
+        print *, 'error: could not open file ', trim(filename)
+      end if
+      call h5close_f(error)
+    else
+      print *, 'error: hdf5 interface initialization failed.'
+    end if
+  end subroutine ReadRealScalar
+
+  subroutine ReadRealArray(filename, datasetname, buffer)
+    character(len=*), intent(in) :: filename 
+    character(len=*), intent(in) :: datasetname
+    real, allocatable, dimension(:,:,:), intent(out) :: buffer
+    character(len=1), parameter :: groupname = "/"
+    integer(HSIZE_T), dimension(3) :: dims, maxdims
+    integer(HID_T) :: file_id, group_id, dset_id, dspace_id
+    integer :: error, status
+    integer :: h5_error_id
+
+    h5_error_id = -1
+
+    call h5open_f(error)
+    if (error .ne. h5_error_id) then
+      call h5fopen_f(trim(filename), H5F_ACC_RDONLY_F, file_id, error)
+      if (error .ne. h5_error_id) then
+        call h5gopen_f(file_id, groupname, group_id, error)
+        if (error .ne. h5_error_id) then
+          call h5dopen_f(group_id, trim(datasetname), dset_id, error)
+          if (error .ne. h5_error_id) then
+            call h5dget_space_f(dset_id, dspace_id, error)
+            if (error .ne. h5_error_id) then
+              call h5sget_simple_extent_dims_f(dspace_id, dims, maxdims, error)
+              if (error .ne. h5_error_id) then
+                print *, 'Dataset dimensions: ', dims(1), dims(2), dims(3)
+                allocate (buffer(dims(1), dims(2), dims(3)))
+                call h5dread_f(dset_id, H5T_NATIVE_REAL, buffer, dims, error)
+                if (error .ne. h5_error_id) then
+                  print *, 'successfully read 3d dataset.'
+                else
+                  print *, 'error: failed to read dataset.'
+                end if
+              else
+                print *, 'error: could not get dataspace dimensions.'
+              end if
+              call h5sclose_f(dspace_id, error)
+            else
+              print *, 'error: could not get dataspace.'
+            end if
+            call h5dclose_f(dset_id, error)
+          else
+            print *, 'error: could not open dataset ', trim(datasetname)
+          end if
+          call h5gclose_f(group_id, error)
+        else
+          print *, 'error: could not open group ', trim(groupname)
+        end if
+        call h5fclose_f(file_id, error)
+      else
+        print *, 'error: could not open file ', trim(filename)
+      end if
+      call h5close_f(error)
+    else
+      print *, 'error: hdf5 interface initialization failed.'
+    end if
+  end subroutine ReadRealArray
+
   subroutine userInitFields()
     implicit none
-    CHARACTER(LEN=12), PARAMETER :: filename = "your_file.h5"
-    CHARACTER(LEN=1), PARAMETER :: groupname = "/"
-    CHARACTER(LEN=2), PARAMETER :: datasetname = "bx"
+    real :: c_value, mx0_value
+    real, allocatable, dimension(:,:,:) :: bx_G, by_G, bz_G, ex_G, ey_G, ez_G
+    integer :: xmin, xmax, ymin, ymax, zmin, zmax
+    integer :: Gxmin, Gxmax, Gymin, Gymax, Gzmin, Gzmax
 
-    ! HDF5 identifiers
-    INTEGER(HID_T) :: file_id, group_id, dset_id, dspace_id
-    INTEGER :: error, status
+    character(len=STR_MAX), parameter :: params_filename = "/mnt/home/vrohoza/shared-valeriia/runs/ic_v2_2d_cf32/sig10.comp5.ppc4.bz1e-1/output/params.00000"
+    character(len=STR_MAX), parameter :: fields_filename = "/mnt/home/vrohoza/shared-valeriia/runs/ic_v2_2d_cf32/sig10.comp5.ppc4.bz1e-1/output/flds/flds.tot.00000"
+    call ReadRealScalar(params_filename, "algorithm:c", c_value)
+    call ReadRealScalar(params_filename, "grid:mx0", mx0_value)
+    call ReadRealArray(fields_filename, "bx", bx_G)
+    call ReadRealArray(fields_filename, "by", by_G)
+    call ReadRealArray(fields_filename, "bz", bz_G)
+    call ReadRealArray(fields_filename, "ex", ex_G)
+    call ReadRealArray(fields_filename, "ey", ey_G)
+    call ReadRealArray(fields_filename, "ez", ez_G)
 
-    ! Data and dimension variables
-    INTEGER(HSIZE_T), DIMENSION(3) :: dims
-    REAL, ALLOCATABLE, DIMENSION(:, :, :) :: data_out
-    ! initialize uniform B-field in z
+    xmin = 0; xmax = this_meshblock % ptr % sx
+    ymin = 0; ymax = this_meshblock % ptr % sy
+    zmin = 0; zmax = 1
 
-    ! 1. Initialize the HDF5 Fortran interface
-    CALL h5open_f(h5_status)
+    Gxmin = this_meshblock % ptr % x0 + 1; Gxmax = Gxmin + this_meshblock % ptr % sx
+    Gymin = this_meshblock % ptr % y0 + 1; Gymax = Gymin + this_meshblock % ptr % sy
+    Gzmin = 0; Gzmax = 1
 
-    IF (h5_status .eq. 0) THEN
-      ! 2. Open the HDF5 file for read-only access
-      CALL h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, error)
-
-      IF (error .eq. 0) THEN
-        ! 3. Open the group
-        CALL h5gopen_f(file_id, groupname, group_id, error)
-
-        IF (error .eq. 0) THEN
-          ! 4. Open the dataset
-          CALL h5dopen_f(group_id, datasetname, dset_id, error)
-
-          IF (error .eq. 0) THEN
-            ! 5. Get the dataspace from the dataset
-            CALL h5dget_space_f(dset_id, dspace_id, error)
-
-            IF (error .eq. 0) THEN
-              ! 6. Get the dimensions of the dataspace
-              CALL h5sget_simple_extent_dims_f(dspace_id, dims, NULL, error)
-
-              IF (error .eq. 0) THEN
-                ! Fortran reads arrays in column-major order, while HDF5 uses row-major.
-                ! The Fortran HDF5 wrapper handles this transposition automatically.
-                PRINT *, 'Dataset dimensions: ', dims(1), dims(2), dims(3)
-
-                ! 7. Allocate memory for the data array
-                ALLOCATE (data_out(dims(1), dims(2), dims(3)), STAT=error)
-
-                IF (error .eq. 0) THEN
-                  ! 8. Read the data from the dataset
-                  CALL h5dread_f(dset_id, H5T_NATIVE_REAL, data_out, dims, error)
-
-                  IF (error .eq. 0) THEN
-                    PRINT *, 'Successfully read 3D dataset "bx".'
-                    !
-                    ! You can now work with the data in the 'data_out' array
-                    !
-                  ELSE
-                    PRINT *, 'Error: Failed to read dataset.'
-                  END IF
-
-                  ! Deallocate the array when done
-                  DEALLOCATE (data_out)
-                ELSE
-                  PRINT *, 'Error: Could not allocate memory for data array.'
-                END IF
-              ELSE
-                PRINT *, 'Error: Could not get dataspace dimensions.'
-              END IF
-              ! Close the dataspace
-              CALL h5sclose_f(dspace_id, error)
-            ELSE
-              PRINT *, 'Error: Could not get dataspace.'
-            END IF
-            ! Close the dataset
-            CALL h5dclose_f(dset_id, error)
-          ELSE
-            PRINT *, 'Error: Could not open dataset ', TRIM(datasetname)
-          END IF
-          ! Close the group
-          CALL h5gclose_f(group_id, error)
-        ELSE
-          PRINT *, 'Error: Could not open group ', TRIM(groupname)
-        END IF
-        ! Close the file
-        CALL h5fclose_f(file_id, error)
-      ELSE
-        PRINT *, 'Error: Could not open file ', TRIM(filename)
-      END IF
-
-      ! 10. Terminate the HDF5 Fortran interface
-      CALL h5close_f(h5_status)
-    ELSE
-      PRINT *, 'Error: HDF5 interface initialization failed.'
-    END IF
+    ex(xmin : xmax, ymin : ymax, zmin : zmax) = ex_G(Gxmin : Gxmax, Gymin : Gymax, Gzmin : Gzmax)
+    ey(xmin : xmax, ymin : ymax, zmin : zmax) = ey_G(Gxmin : Gxmax, Gymin : Gymax, Gzmin : Gzmax)
+    ez(xmin : xmax, ymin : ymax, zmin : zmax) = ez_G(Gxmin : Gxmax, Gymin : Gymax, Gzmin : Gzmax)
+    by(xmin : xmax, ymin : ymax, zmin : zmax) = bx_G(Gxmin : Gxmax, Gymin : Gymax, Gzmin : Gzmax)
+    by(xmin : xmax, ymin : ymax, zmin : zmax) = by_G(Gxmin : Gxmax, Gymin : Gymax, Gzmin : Gzmax)
+    bz(xmin : xmax, ymin : ymax, zmin : zmax) = bz_G(Gxmin : Gxmax, Gymin : Gymax, Gzmin : Gzmax)
   end subroutine userInitFields
   !............................................................!
-
+  
   !--- driving ------------------------------------------------!
   subroutine userCurrentDeposit(step)
     implicit none

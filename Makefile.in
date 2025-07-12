@@ -10,7 +10,10 @@ FFLAGS := @COMPILER_FLAGS@
 PFLAGS := @PREPROCESSOR_FLAGS@
 WARNFLAGS := @WARNING_FLAGS@
 
+INC_DIRS := -I $(HDF5_ROOT)/include
+
 PFLAGS += @DEFS@
+# FFLAGS += $(WARNFLAGS)
 
 # Preliminary definitions
 EXE_FILE := @EXE_NAME@
@@ -38,18 +41,8 @@ all : depend $(EXECUTABLE)
 
 -include Makefile.depend
 
-MAKEDEPF90 := makedepf90
-ifeq (, $(shell which ${MAKEDEPF90}))
-	OS := $(shell uname)
-	ifeq ($(OS), Darwin)
-		MAKEDEPF90 := ./extern/makedepf90-mac
-	else
-		MAKEDEPF90 := ./extern/makedepf90
-	endif
-endif
-
 depend Makefile.depend:
-	${HIDE}-${MAKEDEPF90} $(SRC_FILES) $(PFLAGS) -B $(BUILD_DIR) > Makefile.depend
+	${HIDE}-./extern/makedepf90 $(SRC_FILES) $(PFLAGS) -B $(BUILD_DIR) > Makefile.depend
 
 $(EXECUTABLE): $(OBJ_FILES)
 	${HIDE}echo Linking $(EXECUTABLE)
@@ -60,7 +53,7 @@ $(EXECUTABLE): $(OBJ_FILES)
 
 $(BUILD_DIR)%.o: %.F90
 	${HIDE}mkdir -p $(@D)
-	${HIDE}$(FC) $(FFLAGS) $(PFLAGS) -cpp $(addprefix -I, $(dir $(INC_FILES))) @MODULE@ $(BUILD_DIR) -c $< -o $@
+	${HIDE}$(FC) $(FFLAGS) $(PFLAGS) -cpp $(addprefix -I, $(dir $(INC_FILES))) $(INC_DIRS) -J  $(BUILD_DIR) -c $< -o $@
 	${HIDE}echo [OK]: compiled $<
 
 clean :
